@@ -22,7 +22,7 @@ jobs:
           tar -xzf db-dump.tar.gz -C ./db-dump
       - name: "Install csvkit for csvcut"
         run: |
-          sudo apt install -y csvkit
+          sudo apt install -y csvkit libsqlite3-mod-impexp
       - name: "Cut redundant fields from 'crates' table"
         run: |
           csvcut --quoting 1 -z 1000000 -x -c id,name ./db-dump/*/data/crates.csv > crates.csv
@@ -30,8 +30,9 @@ jobs:
         run: |
           csvcut --quoting 1 -z 2000000 -x -c crate_id,features,id,num ./db-dump/*/data/versions.csv > versions.csv
 
-      - name: "Setup sqlite"
-        uses: ccorsi/setup-sqlite@v1
+      - name: "Enable JSON1 in sqlite"
+        run: |
+          sqlite3 .load libsqlite3-mod-impexp
 
       - name: "Load raw versions of tables into sqlite3"
         run: |
