@@ -22,7 +22,7 @@ jobs:
           tar -xzf db-dump.tar.gz -C ./db-dump
       - name: "Install csvkit for csvcut"
         run: |
-          apt install -y csvkit
+          sudo apt install -y csvkit
       - name: "Cut redundant fields from 'crates' table"
         run: |
           csvcut --quoting 1 -z 1000000 -x -c id,name ./db-dump/*/data/crates.csv > crates.csv
