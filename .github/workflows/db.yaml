@@ -31,7 +31,7 @@ jobs:
           csvcut --quoting 1 -z 2000000 -x -c crate_id,features,id,num ./db-dump/*/data/versions.csv > versions.csv
 
       - name: "Setup sqlite"
-        uses: actions/setup-sqlite@v1
+        uses: ccorsi/setup-sqlite@v1
 
       - name: "Load raw versions of tables into sqlite3"
         run: |
