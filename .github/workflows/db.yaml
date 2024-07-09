@@ -1,0 +1,60 @@
+name: "Generate suggestions DB file"
+
+on:
+  schedule:
+    # Run every day
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Download database dump"
+        run: |
+          wget https://static.crates.io/db-dump.tar.gz -O db-dump.tar.gz
+      - name: "Extract database dump"
+        run: |
+          mkdir -p db-dump
+          tar -xzf db-dump.tar.gz -C ./db-dump
+      - name: "Install csvkit for csvcut"
+        run: |
+          apt install -y csvkit
+      - name: "Cut redundant fields from 'crates' table"
+        run: |
+          csvcut --quoting 1 -z 1000000 -x -c id,name ./db-dump/*/data/crates.csv > crates.csv
+      - name: "Cut redundant fields from 'versions' table"
+        run: |
+          csvcut --quoting 1 -z 2000000 -x -c crate_id,features,id,num ./db-dump/*/data/versions.csv > versions.csv
+
+      - name: "Load raw versions of tables into sqlite3"
+        run: |
+          sqlite3 db.sqlite3 <<< ".import crates.csv crates_raw --csv"
+          sqlite3 db.sqlite3 <<< ".import versions.csv versions_raw --csv"
+
+      - name: "Initialize tables"
+        run: |
+          sqlite3 db.sqlite3 "\
+            CREATE TABLE crates (id INTEGER PRIMARY KEY, name TEXT);\
+            CREATE TABLE versions (crate_id INTEGER, features JSONB, id INTEGER, num TEXT, FOREIGN KEY (crate_id) REFERENCES crates(id));"
+      - name: "Convert from raw table to final table"
+        run: |
+          sqlite3 db.sqlite3 "\
+            INSERT INTO crates(id, name) SELECT CAST(id as INTERGER), name FROM crates_raw;\
+            INSERT INTO versions(num,crate_id,features,id) SELECT num,CAST(crate_id as INTERGER),jsonb(features),CAST(id as INTEGER) FROM versions_raw;"
+            
+      - name: "Remove raw tabnles"
+        run: |
+          sqlite3 db.sqlite3 "DROP TABLE crates_raw; DROP TABLE versions_raw;"
+
+      - name: "Get current date"
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d-%H')"
+
+      - name: "Archive and upload to artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: crates-completion-db-${{ steps.date.outputs.date }}
+          path: db.sqlite3
+          retention-days: 7
+          overwrite: false

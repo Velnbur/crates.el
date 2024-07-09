@@ -34,8 +34,8 @@
     (prefix (and (member 'crates-mode local-minor-modes)
                  (company-grab-symbol)))
     (candidates
-     (cl-remove-if-not
-      (lambda (c) (string-prefix-p arg c))
+     (all-completions
+      arg
       (crates-db--propose-crates arg crates-company-max-candidates)))))
 
 ;;;###autoload
@@ -44,7 +44,7 @@
   (interactive)
   (add-to-list 'company-backends 'crates-company-backend))
 
-(defvar crates-company--completion-cache ni
+(defvar crates-company--completion-cache nil
   "Cache for the last completion.")
 
 (provide 'crates-company)

@@ -36,7 +36,7 @@
 
 (defvar crates-download-tmp-dump-dir
   (concat crates-download-tmp-dir "db-dump")
-  "Directory to temporary store decompressed database dump")
+  "Directory to temporary store decompressed database dump.")
 
 (defvar crates-download-dest-dir
   (concat (file-name-as-directory (xdg-state-home)) "/crates-download/crates-io")
@@ -58,6 +58,7 @@
 
 ;;;###autoload
 (defun crates-download-db-sync ()
+  "Download crates.io database dump sync."
   (interactive)
   (let* ((archive (crates-download--download-sql-dump))
          (dir (crates-download--tar-gz-decompress archive)))
@@ -65,15 +66,15 @@
     crates-download-dest-dir))
 
 (defun crates-download--download-sql-dump (&optional dest)
-  "Download sql dump from crates.io into `PATH' and return path to it."
+  "Download sql dump from crates.io into `DEST' and return path to it."
   (let ((file-path (or dest crates-download-tmp-archive-path)))
     (unless (file-exists-p file-path)
       (url-copy-file crates-download--url file-path t))
     file-path))
 
 (defun crates-download--tar-gz-decompress (file &optional dest)
-  "Decompress tar gz FILE archive. Return path to the directory with
-decompressed archive"
+  "Decompress tar gz `FILE' archive into `DEST'.
+Return path to the directory with decompressed archive."
   (let ((file (expand-file-name file))
         (dir (or dest crates-download-tmp-dump-dir)))
     ;; TODO: maybe use `call-process' or `start-process' instead?
@@ -87,8 +88,7 @@ decompressed archive"
     dir))
 
 (defun crates-download--move-result (dir dest)
-  "Prepare `DIR' by removing inner directory with date name and
- move it to `DEST'."
+  "Prepare `DIR' by removing inner directory with date name and move it to `DEST'."
   ;; match is added here to skip . and .. directories
   (let ((inner-dir (car (directory-files dir t "^[0-9]"))))
     (rename-file inner-dir dest t)))
