@@ -57,6 +57,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # melpazoid shells out to emacs to parse the recipe.
+      - uses: purcell/setup-emacs@master
+        with:
+          version: "30.2"
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
