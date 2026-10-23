@@ -251,6 +251,7 @@ STATUS is one of `up-to-date', `compatible', `outdated', `unknown',
   (cond
    ((crates-db-update-running-p) " [updating]")
    ((not (file-exists-p crates-db-file)) " [no db]")
+   ((not (crates-db-schema-current-p)) " [db outdated]")
    ((crates-db-stale-p) (format " [db %dd]" (crates-db-age)))))
 
 ;;;; Dependency at point
@@ -322,7 +323,7 @@ exclude the latest version."
 (defconst crates--operator-re "\\`[ \t]*\\(?:\\^\\|~\\|>=\\|<=\\|>\\|<\\|=\\)?[ \t]*"
   "Regexp matching the operator in front of a requirement's version.")
 
-(defun crates-completion-at-point ()
+(defun crates-version-completion-at-point ()
   "Complete the version in the requirement string at point.
 Candidates are the crate's non-yanked versions, newest first."
   (when-let* ((dep (cl-find-if (lambda (dep)
@@ -352,6 +353,129 @@ Candidates are the crate's non-yanked versions, newest first."
               (when-let* ((date (cdr (assoc candidate dates))))
                 (concat "  " (substring date 0 (min 10 (length date))))))))))
 
+;;;; Crate name completion
+
+(defcustom crates-name-completion-limit 100
+  "Maximum number of crate names offered by `crates-name-completion-at-point'."
+  :type 'natnum
+  :group 'crates)
+
+(defcustom crates-name-completion-insert-version t
+  "Non-nil means completing a dependency name also inserts its version.
+After `serde' is completed on an otherwise empty line, the line becomes
+serde = \"LATEST\"."
+  :type 'boolean
+  :group 'crates)
+
+(defcustom crates-name-annotation-width 60
+  "Width at which crate descriptions are cut in completion annotations."
+  :type 'natnum
+  :group 'crates)
+
+(defconst crates--deps-table-re
+  (concat "\\(?:workspace\\.\\|target\\.\\(?:'[^'\n]*'\\|\"[^\"\n]*\"\\|[^]'\".\n]+\\)\\.\\)?"
+          "\\(?:dev-\\|build-\\)?dependencies")
+  "Regexp matching the name of a table that holds dependencies.")
+
+(defun crates--in-deps-table-p ()
+  "Non-nil if point is below the header of a dependencies table."
+  (save-excursion
+    (and (re-search-backward "^[ \t]*\\[" nil t)
+         (looking-at-p (concat "[ \t]*\\[[ \t]*" crates--deps-table-re "[ \t]*\\]")))))
+
+(defun crates--name-bounds ()
+  "Return (BEG END KIND) if point is on a crate name being written.
+KIND is `key' for a key in a dependencies table, and `header' for the
+last segment of a [dependencies.NAME] header."
+  (unless (nth 8 (syntax-ppss))
+    (save-excursion
+      (let* ((end (progn (skip-chars-forward "A-Za-z0-9_-") (point)))
+             (beg (progn (skip-chars-backward "A-Za-z0-9_-") (point)))
+             (before (buffer-substring-no-properties (line-beginning-position) beg)))
+        (cond
+         ((and (string-match-p "\\`[ \t]*\\'" before)
+               (save-excursion (goto-char end) (looking-at-p "[ \t]*\\(?:[=.]\\|$\\)"))
+               (crates--in-deps-table-p))
+          (list beg end 'key))
+         ((string-match-p (concat "\\`[ \t]*\\[[ \t]*" crates--deps-table-re "\\.\\'")
+                          before)
+          (list beg end 'header)))))))
+
+(defun crates--first-line (string)
+  "Return the first line of STRING, or nil if STRING is nil."
+  (and string (car (split-string string "\n"))))
+
+(defun crates--group-digits (n)
+  "Return integer N with thousands separated by commas."
+  (let ((s (number-to-string n)))
+    (while (string-match "\\([0-9]\\)\\([0-9]\\{3\\}\\)\\(,\\|\\'\\)" s)
+      (setq s (replace-match "\\1,\\2\\3" t nil s)))
+    s))
+
+(defun crates--name-doc-buffer (row)
+  "Return a buffer describing the crate of search result ROW."
+  (pcase-let ((`(,name ,description ,downloads ,version) row))
+    (with-current-buffer (get-buffer-create " *crates-doc*")
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (propertize name 'face 'bold)
+                (if version (concat " " version) "") "\n\n"
+                (or description "No description.") "\n\n"
+                (format "Downloads: %s\n" (crates--group-digits (or downloads 0)))
+                "https://crates.io/crates/" name "\n"))
+      (goto-char (point-min))
+      (current-buffer))))
+
+(defun crates-name-completion-at-point ()
+  "Complete the name of a crate in a dependencies table.
+Works on dependency keys and on [dependencies.NAME] headers.
+Candidates come from the local database, most downloaded first, and
+carry their latest version and description as annotations; with
+`company-mode' the description is also shown as the signature and
+the doc buffer."
+  (when-let* ((bounds (crates--name-bounds))
+              ((crates-db-available-p))
+              ((crates-db-schema-current-p)))
+    (pcase-let* ((`(,beg ,end ,kind) bounds)
+                 (rows (make-hash-table :test #'equal))
+                 (table (completion-table-dynamic
+                         (lambda (prefix)
+                           (mapcar (lambda (row) (puthash (car row) row rows) (car row))
+                                   (crates-db-search prefix crates-name-completion-limit))))))
+      (list beg end
+            (lambda (string pred action)
+              (if (eq action 'metadata)
+                  '(metadata (category . crates-crate)
+                             (display-sort-function . identity)
+                             (cycle-sort-function . identity))
+                (funcall table string pred action)))
+            :exclusive 'no
+            :annotation-function
+            (lambda (name)
+              (when-let* ((row (gethash name rows)))
+                ;; Pad the version so descriptions line up.
+                (concat "  " (string-pad (or (nth 3 row) "") 9)
+                        (when (nth 1 row)
+                          (concat " " (truncate-string-to-width
+                                        (crates--first-line (nth 1 row))
+                                        crates-name-annotation-width nil nil t))))))
+            :company-kind (lambda (_) 'module)
+            :company-docsig
+            (lambda (name) (crates--first-line (nth 1 (gethash name rows))))
+            :company-doc-buffer
+            (lambda (name) (when-let* ((row (gethash name rows)))
+                             (crates--name-doc-buffer row)))
+            :exit-function
+            (lambda (name status)
+              (let ((version (nth 3 (gethash name rows))))
+                (when (and crates-name-completion-insert-version
+                           version
+                           (eq kind 'key)
+                           (eq status 'finished)
+                           (looking-at-p "[ \t]*$"))
+                  (delete-region (point) (line-end-position))
+                  (insert " = \"" version "\""))))))))
+
 ;;;; Mode
 
 (defvar-keymap crates-mode-map
@@ -362,10 +486,15 @@ Candidates are the crate's non-yanked versions, newest first."
   "C-c C-r" #'crates-refresh)
 
 (defun crates--maybe-hint ()
-  "Explain how to get a database when there is none."
-  (unless (or (file-exists-p crates-db-file) (crates-db-update-running-p))
-    (message (substitute-command-keys
-              "crates: no crates.io database yet; build one with \\[crates-db-update]"))))
+  "Explain how to get a usable database when there is none."
+  (unless (crates-db-update-running-p)
+    (cond
+     ((not (file-exists-p crates-db-file))
+      (message (substitute-command-keys
+                "crates: no crates.io database yet; build one with \\[crates-db-update]")))
+     ((not (crates-db-schema-current-p))
+      (message (substitute-command-keys
+                "crates: the database predates this version of crates.el; \\[crates-db-update] to rebuild it"))))))
 
 ;;;###autoload
 (define-derived-mode crates-mode toml-ts-mode "Cargo"
@@ -376,7 +505,8 @@ looked up in the local database (see `crates-db-update').
 \\{crates-mode-map}"
   (setq-local mode-line-process '(:eval (crates--mode-line)))
   (add-hook 'after-change-functions #'crates--after-change nil t)
-  (add-hook 'completion-at-point-functions #'crates-completion-at-point nil t)
+  (add-hook 'completion-at-point-functions #'crates-name-completion-at-point nil t)
+  (add-hook 'completion-at-point-functions #'crates-version-completion-at-point nil t)
   (crates-db-maybe-update)
   (crates--maybe-hint)
   (crates-refresh))

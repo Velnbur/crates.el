@@ -32,13 +32,25 @@
                      ("1.0.219" nil "2025-01-01 00:00:00+00")
                      ("1.0.220" t "2025-06-01 00:00:00+00"))))))
 
-(ert-deftest crates-db-test-names ()
+(ert-deftest crates-db-test-search ()
   (crates-test-with-db
-    (should (equal (crates-db-crate-names "re") '("real-name")))
-    (should (equal (crates-db-crate-names "") '("libc" "serde" "tokio" "anyhow"
-                                                "real-name" "prerelease-only")))
-    ;; LIKE wildcards in the prefix are taken literally.
-    (should-not (crates-db-crate-names "_"))))
+    (should (equal (crates-db-search "se")
+                   '(("serde" "A serialization framework" 900000000 "1.0.219"))))
+    ;; Most downloaded first; LIMIT applies.
+    (should (equal (mapcar #'car (crates-db-search ""))
+                   '("serde" "libc" "tokio" "anyhow" "real-name" "prerelease-only")))
+    (should (equal (mapcar #'car (crates-db-search "" 2)) '("serde" "libc")))
+    ;; Case-insensitive, `-' and `_' interchangeable.
+    (should (equal (mapcar #'car (crates-db-search "REAL_n")) '("real-name")))
+    ;; LIKE's `%' is taken literally.
+    (should-not (crates-db-search "%"))))
+
+(ert-deftest crates-db-test-schema ()
+  (crates-test-with-db
+    (should (crates-db-schema-current-p))
+    (let ((crates-db-schema-version "0"))
+      (should-not (crates-db-schema-current-p))
+      (should (crates-db-stale-p)))))
 
 (ert-deftest crates-db-test-failed-update-keeps-db ()
   (crates-test-skip-unless-tools)

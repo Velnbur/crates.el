@@ -7,9 +7,9 @@ right next to it, without a network round-trip per crate.
 
 ```toml
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }   ✓ 1.0.219
-tokio = "1.2"                                        ↑ 1.45.0
-rand = "0.7"                                         → 0.9.1
+serde = { version = "1.0", features = ["derive"] }   ✓ 1.0.229
+tokio = "1.2"                                        ↑ 1.54.1
+rand = "0.8"                                         → 0.10.3
 ```
 
 - `✓` the requirement names the latest version
@@ -62,8 +62,35 @@ you edit. Hover an annotation for details.
 Bumping keeps the operator and precision you wrote: `"1.2"` becomes
 `"1.45"`, `"~0.3.1"` becomes `"~0.4.2"`.
 
-`completion-at-point` inside a version string offers the crate's
-non-yanked versions, newest first.
+### Completion
+
+Two `completion-at-point` functions are installed, so they work with
+the default `C-M-i`, `company-mode` (through `company-capf`), Corfu
+and friends:
+
+- **Crate names**, on a key in a dependencies table or in a
+  `[dependencies.NAME]` header. Candidates are ordered by downloads and
+  annotated with their latest version and description:
+
+  ```
+  [dependencies]
+  ser|
+      serde             1.0.229   A generic serialization/deserialization framework
+      serde_derive      1.0.229   Macros 1.1 implementation of #[derive(Serialize, Deserializ…
+      serde_json        1.0.154   A JSON serialization file format
+      serde_core        1.0.229   Serde traits only, with no support for derive -- use the `s…
+      serde_spanned     1.1.2     Serde-compatible spanned Value
+  ```
+
+  With company, the description is also shown in the echo area, and
+  `<f1>` on a candidate opens its full description, download count and
+  crates.io link. Choosing a name on an empty line also writes its
+  version (`serde = "1.0.229"`); turn that off with
+  `crates-name-completion-insert-version`. Case and `-`/`_` are ignored
+  when matching, as on crates.io.
+
+- **Versions**, inside a requirement string: the crate's non-yanked
+  versions, newest first, with their release dates.
 
 Dependencies are recognised in `[dependencies]`, `[dev-dependencies]`,
 `[build-dependencies]`, `[workspace.dependencies]` and
@@ -75,7 +102,9 @@ registries are skipped.
 ## Customization
 
 `M-x customize-group RET crates`. Notable options: `crates-db-file`,
-`crates-db-max-age`, `crates-db-auto-update`, `crates-indicators`, and
+`crates-db-max-age`, `crates-db-auto-update`, `crates-indicators`,
+`crates-name-completion-limit`, `crates-name-completion-insert-version`,
+`crates-name-annotation-width`, and
 the faces `crates-up-to-date`, `crates-compatible-update`,
 `crates-outdated` and `crates-error`.
 

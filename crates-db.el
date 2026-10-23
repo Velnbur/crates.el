@@ -77,7 +77,7 @@ few GB of free space in the directory named by the variable
 (defvar crates-db-after-update-hook nil
   "Hook run after the database has been replaced by a new build.")
 
-(defconst crates-db-schema-version "1"
+(defconst crates-db-schema-version "2"
   "Version of the database layout, stored in its `meta' table.")
 
 (defconst crates-db--log-buffer "*crates-db-update*"
@@ -128,15 +128,23 @@ YANKED is t or nil.  The order is unspecified."
              db "SELECT num, yanked, created_at FROM versions WHERE crate_id = ?"
              (list crate-id)))))
 
-(defun crates-db-crate-names (prefix &optional limit)
-  "Return up to LIMIT (default 200) crate names starting with PREFIX."
+(defun crates-db--like-prefix (prefix)
+  "Return a LIKE pattern matching names that start with PREFIX.
+As on crates.io, `-' and `_' are interchangeable."
+  (concat (replace-regexp-in-string
+           "[-_]" "_" (replace-regexp-in-string "[%\\\\]" "\\\\\\&" prefix))
+          "%"))
+
+(defun crates-db-search (prefix &optional limit)
+  "Return up to LIMIT (default 100) crates named with PREFIX at the start.
+Each element is (NAME DESCRIPTION DOWNLOADS DEFAULT-VERSION); the most
+downloaded crates come first.  Matching ignores case and treats `-'
+and `_' alike."
   (when-let* ((db (crates-db--open)))
-    (mapcar #'car
-            (sqlite-select
-             db "SELECT name FROM crates WHERE name LIKE ?1 ESCAPE '\\'
-                 ORDER BY length(name), name LIMIT ?2"
-             (list (concat (replace-regexp-in-string "[%_\\]" "\\\\\\&" prefix) "%")
-                   (or limit 200))))))
+    (sqlite-select
+     db "SELECT name, description, downloads, default_version FROM crates
+         WHERE name LIKE ?1 ESCAPE '\\' ORDER BY downloads DESC, name LIMIT ?2"
+     (list (crates-db--like-prefix prefix) (or limit 100)))))
 
 (defun crates-db-meta (key)
   "Return the value stored under KEY in the database's `meta' table."
@@ -151,10 +159,17 @@ YANKED is t or nil.  The order is unspecified."
                          (file-attributes crates-db-file))))
        86400.0)))
 
+(defun crates-db-schema-current-p ()
+  "Non-nil if the database has the layout this version of crates.el expects."
+  (equal (ignore-errors (crates-db-meta "schema")) crates-db-schema-version))
+
 (defun crates-db-stale-p ()
-  "Non-nil if the database is missing or older than `crates-db-max-age'."
+  "Non-nil if the database is missing, outdated, or too old.
+Too old means older than `crates-db-max-age' days; outdated means
+built by an earlier version of crates.el."
   (let ((age (crates-db-age)))
     (or (null age)
+        (not (crates-db-schema-current-p))
         (and crates-db-max-age (> age crates-db-max-age)))))
 
 ;;;; Building
@@ -181,7 +196,8 @@ YANKED is t or nil.  The order is unspecified."
           (mapconcat #'shell-quote-argument
                      (append (and (crates-db--gnu-tar-p) '("--wildcards"))
                              '("*/metadata.json" "*/data/crates.csv"
-                               "*/data/versions.csv" "*/data/default_versions.csv"))
+                               "*/data/crate_downloads.csv" "*/data/versions.csv"
+                               "*/data/default_versions.csv"))
                      " ")))
 
 (defun crates-db--sql-string (string)
@@ -209,14 +225,24 @@ CREATE INDEX versions_crate ON versions(crate_id);\n"
 INSERT INTO default_versions SELECT CAST(crate_id AS INTEGER), CAST(version_id AS INTEGER)
   FROM s_default;
 DROP TABLE s_default;\n"
+     ".import --csv " (funcall csv "crate_downloads.csv") " s_downloads\n"
+     "CREATE TABLE downloads(crate_id INTEGER PRIMARY KEY, downloads INTEGER);
+INSERT INTO downloads SELECT CAST(crate_id AS INTEGER), CAST(downloads AS INTEGER)
+  FROM s_downloads;
+DROP TABLE s_downloads;\n"
      ".import --csv " (funcall csv "crates.csv") " s_crates\n"
-     "CREATE TABLE crates(id INTEGER PRIMARY KEY, name TEXT NOT NULL, default_version TEXT);
-INSERT INTO crates SELECT CAST(c.id AS INTEGER), c.name, v.num FROM s_crates c
+     ;; NOCASE on the column itself lets LIKE use the index.
+     "CREATE TABLE crates(id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE,
+  description TEXT, downloads INTEGER NOT NULL DEFAULT 0, default_version TEXT);
+INSERT INTO crates SELECT CAST(c.id AS INTEGER), c.name, nullif(trim(c.description), ''),
+  coalesce(dl.downloads, 0), v.num FROM s_crates c
   LEFT JOIN default_versions d ON d.crate_id = CAST(c.id AS INTEGER)
-  LEFT JOIN versions v ON v.id = d.version_id;
+  LEFT JOIN versions v ON v.id = d.version_id
+  LEFT JOIN downloads dl ON dl.crate_id = CAST(c.id AS INTEGER);
 DROP TABLE s_crates;
 DROP TABLE default_versions;
-CREATE INDEX crates_name ON crates(name COLLATE NOCASE);
+DROP TABLE downloads;
+CREATE INDEX crates_name ON crates(name);
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);\n"
      (format "INSERT INTO meta VALUES ('schema', %s), ('dump_timestamp', %s), ('built_at', %s);\n"
              (crates-db--sql-string crates-db-schema-version)
