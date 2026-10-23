@@ -40,7 +40,7 @@ jobs:
           tar --version | head -n 1
           curl --version | head -n 1
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .cache
           key: deps-${{ matrix.os }}-emacs-${{ matrix.emacs }}-${{ hashFiles('test/make.el') }}
