@@ -1,0 +1,31 @@
+[package]
+name = "fixture"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+anyhow = "1"
+tokio.version = "1.2"
+tokio.features = ["full"]
+"quoted" = '0.3'
+renamed = { package = "real-name", version = "~2.1" }
+local = { path = "../local" }
+inherited = { workspace = true }
+private = { version = "1", registry = "my-registry" }
+
+[dependencies.subtable]
+version = "=0.1.2"
+optional = true
+
+[dev-dependencies]
+proptest = ">=1, <2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[workspace.dependencies]
+regex = "1.10"
+
+[features]
+default = ["serde"]

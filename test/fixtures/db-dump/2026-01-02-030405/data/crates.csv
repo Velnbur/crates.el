@@ -1,0 +1,9 @@
+created_at,description,documentation,homepage,id,max_features,max_upload_size,name,readme,repository,trustpub_only,updated_at
+2015-01-01 00:00:00+00,A serialization framework,,,1,,,serde,"# serde
+
+A ""multi-line"" readme, with commas.",,f,2026-01-01 00:00:00+00
+2019-01-01 00:00:00+00,Error handling,,,2,,,anyhow,,,f,2026-01-01 00:00:00+00
+2020-01-01 00:00:00+00,Renamed,,,3,,,real-name,,,f,2026-01-01 00:00:00+00
+2015-01-01 00:00:00+00,FFI bindings,,,4,,,libc,,,f,2026-01-01 00:00:00+00
+2016-01-01 00:00:00+00,Async runtime,,,5,,,tokio,,,f,2026-01-01 00:00:00+00
+2025-01-01 00:00:00+00,Only pre-releases,,,6,,,prerelease-only,,,f,2026-01-01 00:00:00+00
