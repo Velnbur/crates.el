@@ -49,8 +49,12 @@
   ;; The Makefile puts GRAMMAR_DIR first on `treesit-extra-load-path'.
   (let ((dir (or (car treesit-extra-load-path) (crates-make--cache "tree-sitter"))))
     (unless (treesit-language-available-p 'toml)
-      (let ((treesit-language-source-alist (list crates-make-toml-grammar)))
-        (treesit-install-language-grammar 'toml dir)))
+      (if (>= (cdr (func-arity #'treesit-install-language-grammar)) 2)
+          (let ((treesit-language-source-alist (list crates-make-toml-grammar)))
+            (treesit-install-language-grammar 'toml dir))
+        ;; Emacs 29 has no OUT-DIR argument and always installs into
+        ;; `user-emacs-directory', so call the worker it delegates to.
+        (apply #'treesit--install-language-grammar-1 dir crates-make-toml-grammar)))
     (unless (treesit-language-available-p 'toml)
       (error "Could not install the toml grammar"))))
 
