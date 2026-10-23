@@ -27,7 +27,7 @@ jobs:
       # Fail instead of skipping tests whose requirements are missing.
       CRATES_TEST_STRICT: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: purcell/setup-emacs@master
         with:
@@ -55,7 +55,7 @@ jobs:
     name: melpazoid
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
