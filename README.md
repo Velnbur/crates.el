@@ -52,13 +52,19 @@ days (7 by default), set `crates-db-auto-update` to `t`.
 `crates-mode` is derived from `toml-ts-mode` and annotates the buffer as
 you edit. Hover an annotation for details.
 
-| Key       | Command                 |                                                         |
-|-----------|-------------------------|---------------------------------------------------------|
-| `C-c C-u` | `crates-bump-at-point`  | Set the requirement at point to the latest version      |
-| `C-c C-a` | `crates-bump-all`       | Bump every bare/`^`/`~` requirement (`C-u`: only outdated ones) |
-| `C-c C-e` | `crates-expand-at-point` | Turn `name = "1"` into `name = { version = "1" }`     |
-| `C-c C-o` | `crates-browse`         | Open the crate's crates.io page                         |
-| `C-c C-r` | `crates-refresh`        | Re-check the buffer                                     |
+All commands live under the `C-c c` prefix (`crates-command-map`):
+
+| Key       | Command                  |                                                         |
+|-----------|--------------------------|---------------------------------------------------------|
+| `C-c c u` | `crates-bump-at-point`   | Set the requirement at point to the latest version      |
+| `C-c c a` | `crates-bump-all`        | Bump every bare/`^`/`~` requirement (`C-u`: only outdated ones) |
+| `C-c c e` | `crates-expand-at-point` | Turn `name = "1"` into `name = { version = "1" }`       |
+| `C-c c o` | `crates-browse`          | Open the crate's crates.io page                         |
+| `C-c c r` | `crates-refresh`         | Re-check the buffer                                     |
+| `C-c c U` | `crates-db-update`       | Rebuild the local crates.io database                    |
+
+To use a different prefix, rebind the map, e.g.
+`(keymap-set crates-mode-map "C-c C-c" 'crates-command-map)`.
 
 Bumping keeps the operator and precision you wrote: `"1.2"` becomes
 `"1.45"`, `"~0.3.1"` becomes `"~0.4.2"`.

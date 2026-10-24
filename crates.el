@@ -493,13 +493,19 @@ the doc buffer."
 
 ;;;; Mode
 
+(defvar-keymap crates-command-map
+  :doc "Prefix keymap for crates.el commands, bound to \\`C-c c' in `crates-mode'."
+  :prefix 'crates-command-map
+  "u" #'crates-bump-at-point
+  "a" #'crates-bump-all
+  "e" #'crates-expand-at-point
+  "o" #'crates-browse
+  "r" #'crates-refresh
+  "U" #'crates-db-update)
+
 (defvar-keymap crates-mode-map
   :doc "Keymap for `crates-mode'."
-  "C-c C-u" #'crates-bump-at-point
-  "C-c C-a" #'crates-bump-all
-  "C-c C-e" #'crates-expand-at-point
-  "C-c C-o" #'crates-browse
-  "C-c C-r" #'crates-refresh)
+  "C-c c" 'crates-command-map)
 
 (defun crates--maybe-hint ()
   "Explain how to get a usable database when there is none."
