@@ -311,6 +311,21 @@ exclude the latest version."
         (cl-incf count)))
     (message "Bumped %d dependenc%s" count (if (= count 1) "y" "ies"))))
 
+(defun crates-expand-at-point ()
+  "Turn the dependency at point from NAME = \"REQ\" into an inline table.
+The line becomes NAME = { version = \"REQ\" }, with point left
+before the closing brace, ready for more fields such as `features'."
+  (interactive)
+  (let* ((dep (or (crates--dep-at-point) (user-error "No dependency at point")))
+         (bounds (or (crates-toml-dep-string dep)
+                     (user-error "%s is not written as a plain version string"
+                                 (crates-toml-dep-name dep)))))
+    (goto-char (cdr bounds))
+    (insert " }")
+    (goto-char (car bounds))
+    (insert "{ version = ")
+    (goto-char (+ (cdr bounds) (length "{ version = ")))))
+
 (defun crates-browse ()
   "Open the crates.io page of the dependency at point."
   (interactive)
@@ -482,6 +497,7 @@ the doc buffer."
   :doc "Keymap for `crates-mode'."
   "C-c C-u" #'crates-bump-at-point
   "C-c C-a" #'crates-bump-all
+  "C-c C-e" #'crates-expand-at-point
   "C-c C-o" #'crates-browse
   "C-c C-r" #'crates-refresh)
 
