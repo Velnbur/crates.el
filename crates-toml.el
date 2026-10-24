@@ -45,6 +45,7 @@
   (req-beg nil :documentation "Buffer position where the requirement text starts.")
   (req-end nil :documentation "Buffer position where the requirement text ends.")
   (key-beg nil :documentation "Buffer position of the dependency's name.")
+  (string nil :documentation "(BEG . END) of the string value, when declared as NAME = \"REQ\".")
   (workspace nil :documentation "Non-nil for `workspace = true' dependencies.")
   (source nil :documentation "Non-nil when it has a `path' or `git' source.")
   (registry nil :documentation "The `registry' field, if any."))
@@ -157,7 +158,10 @@ Each element is a `crates-toml-dep'."
                    (let ((q (crates-toml--quote-length text)))
                      (setf (crates-toml-dep-req dep) (crates-toml--unquote text)
                            (crates-toml-dep-req-beg dep) (+ (treesit-node-start value) q)
-                           (crates-toml-dep-req-end dep) (- (treesit-node-end value) q)))))
+                           (crates-toml-dep-req-end dep) (- (treesit-node-end value) q))
+                     (unless field
+                       (setf (crates-toml-dep-string dep)
+                             (cons (treesit-node-start value) (treesit-node-end value)))))))
                 ("package" (when text
                              (setf (crates-toml-dep-package dep) (crates-toml--unquote text))))
                 ("registry" (when text

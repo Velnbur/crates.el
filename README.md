@@ -56,6 +56,7 @@ you edit. Hover an annotation for details.
 |-----------|-------------------------|---------------------------------------------------------|
 | `C-c C-u` | `crates-bump-at-point`  | Set the requirement at point to the latest version      |
 | `C-c C-a` | `crates-bump-all`       | Bump every bare/`^`/`~` requirement (`C-u`: only outdated ones) |
+| `C-c C-e` | `crates-expand-at-point` | Turn `name = "1"` into `name = { version = "1" }`     |
 | `C-c C-o` | `crates-browse`         | Open the crate's crates.io page                         |
 | `C-c C-r` | `crates-refresh`        | Re-check the buffer                                     |
 

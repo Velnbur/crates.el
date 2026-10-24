@@ -85,6 +85,25 @@
     (search-forward "local")
     (should-error (crates-bump-at-point) :type 'user-error)))
 
+(ert-deftest crates-test-expand-at-point ()
+  (crates-test--with-manifest
+    (goto-char (point-min))
+    (search-forward "anyhow")
+    (crates-expand-at-point)
+    (should (equal (buffer-substring-no-properties (line-beginning-position) (line-end-position))
+                   "anyhow = { version = \"1\" }"))
+    (should (looking-at-p " }$"))
+    (search-forward "\"quoted\"")
+    (crates-expand-at-point)
+    (should (string-search "\"quoted\" = { version = '0.3' }" (buffer-string)))
+    (search-forward "renamed")
+    (should-error (crates-expand-at-point) :type 'user-error)
+    (goto-char (point-min))
+    (search-forward "tokio.version")
+    (should-error (crates-expand-at-point) :type 'user-error)
+    (search-forward "local")
+    (should-error (crates-expand-at-point) :type 'user-error)))
+
 (ert-deftest crates-test-completion ()
   (crates-test--with-manifest
     (goto-char (point-min))
