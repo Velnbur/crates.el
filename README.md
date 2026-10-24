@@ -90,6 +90,12 @@ and friends:
   `crates-name-completion-insert-version`. Case and `-`/`_` are ignored
   when matching, as on crates.io.
 
+  In a Cargo workspace, a crate that the root manifest already declares
+  in `[workspace.dependencies]` is inherited instead:
+  `serde = { workspace = true }`. Set
+  `crates-name-completion-workspace` to `dotted` for
+  `serde.workspace = true`, or to `nil` to always write a version.
+
 - **Versions**, inside a requirement string: the crate's non-yanked
   versions, newest first, with their release dates.
 
@@ -105,6 +111,7 @@ registries are skipped.
 `M-x customize-group RET crates`. Notable options: `crates-db-file`,
 `crates-db-max-age`, `crates-db-auto-update`, `crates-indicators`,
 `crates-name-completion-limit`, `crates-name-completion-insert-version`,
+`crates-name-completion-workspace`,
 `crates-name-annotation-width`, and
 the faces `crates-up-to-date`, `crates-compatible-update`,
 `crates-outdated` and `crates-error`.

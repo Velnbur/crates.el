@@ -187,6 +187,90 @@
       (funcall (plist-get props :exit-function) "serde" 'finished)
       (should (equal (buffer-string) "[dependencies]\nse = \"1\"\n")))))
 
+(defun crates-test--complete-in-member (text name)
+  "Complete NAME at | in member manifest TEXT of a workspace with serde.
+Return the line holding point afterwards."
+  (let* ((root (make-temp-file "crates-ws-" t))
+         (member (expand-file-name "member/Cargo.toml" root)))
+    (unwind-protect
+        (progn
+          (make-directory (file-name-directory member))
+          (with-temp-file (expand-file-name "Cargo.toml" root)
+            (insert "[workspace]\nmembers = [\"member\"]\n\n"
+                    "[workspace.dependencies]\nserde = \"1\"\n"))
+          (with-temp-buffer
+            (setq buffer-file-name member)
+            (insert text)
+            (let ((crates-db-auto-update nil)
+                  (inhibit-message t))
+              (crates-mode))
+            (goto-char (point-min))
+            (search-forward "|")
+            (delete-char -1)
+            (let* ((capf (crates-name-completion-at-point))
+                   (props (nthcdr 3 capf)))
+              (all-completions "" (nth 2 capf))
+              (delete-region (nth 0 capf) (nth 1 capf))
+              (insert name)
+              (funcall (plist-get props :exit-function) name 'finished))
+            (prog1 (buffer-substring-no-properties (line-beginning-position)
+                                                   (line-end-position))
+              (set-buffer-modified-p nil)
+              (setq buffer-file-name nil))))
+      (delete-directory root t))))
+
+(ert-deftest crates-test-name-completion-workspace ()
+  (crates-test-skip-unless-grammar)
+  (crates-test-with-db
+    (clrhash crates--cache)
+    (should (equal (crates-test--complete-in-member "[dependencies]\nse|\n" "serde")
+                   "serde = { workspace = true }"))
+    (should (equal (crates-test--complete-in-member "[target.'cfg(unix)'.dev-dependencies]\nse|\n"
+                                                    "serde")
+                   "serde = { workspace = true }"))
+    (let ((crates-name-completion-workspace 'dotted))
+      (should (equal (crates-test--complete-in-member "[dependencies]\nse|\n" "serde")
+                     "serde.workspace = true")))
+    (let ((crates-name-completion-workspace nil))
+      (should (equal (crates-test--complete-in-member "[dependencies]\nse|\n" "serde")
+                     "serde = \"1.0.219\"")))
+    ;; Crates the workspace does not declare get a version as usual.
+    (should (equal (crates-test--complete-in-member "[dependencies]\nli|\n" "libc")
+                   "libc = \"0.2.170\""))))
+
+(ert-deftest crates-test-name-completion-workspace-root ()
+  (crates-test-skip-unless-grammar)
+  (crates-test-with-db
+    (clrhash crates--cache)
+    (let ((root (make-temp-file "crates-ws-" t)))
+      (unwind-protect
+          (with-temp-buffer
+            (setq buffer-file-name (expand-file-name "Cargo.toml" root))
+            (insert "[package]\nname = \"root\"\n\n[dependencies]\n|\n\n"
+                    "[workspace.dependencies]\nserde = \"1\"\n")
+            (let ((crates-db-auto-update nil)
+                  (inhibit-message t))
+              (crates-mode))
+            (goto-char (point-min))
+            (search-forward "|")
+            (delete-char -1)
+            (insert "serde")
+            (funcall (plist-get (nthcdr 3 (crates-name-completion-at-point)) :exit-function)
+                     "serde" 'finished)
+            (should (string-search "[dependencies]\nserde = { workspace = true }\n"
+                                   (buffer-string)))
+            ;; Inside [workspace.dependencies] itself, a version is written.
+            (goto-char (point-max))
+            (insert "li")
+            (let ((capf (crates-name-completion-at-point)))
+              (all-completions "li" (nth 2 capf))
+              (insert "bc")
+              (funcall (plist-get (nthcdr 3 capf) :exit-function) "libc" 'finished))
+            (should (string-suffix-p "libc = \"0.2.170\"" (buffer-string)))
+            (set-buffer-modified-p nil)
+            (setq buffer-file-name nil))
+        (delete-directory root t)))))
+
 (ert-deftest crates-test-group-digits ()
   (should (equal (crates--group-digits 0) "0"))
   (should (equal (crates--group-digits 1234) "1,234"))

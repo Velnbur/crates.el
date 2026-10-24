@@ -40,6 +40,7 @@
                (:copier nil))
   "A dependency declared in a Cargo manifest."
   (name nil :documentation "The key the dependency is declared under.")
+  (table nil :documentation "The table it is declared in, as a list of key segments.")
   (package nil :documentation "The `package' field, when the dependency is renamed.")
   (req nil :documentation "The version requirement string, or nil.")
   (req-beg nil :documentation "Buffer position where the requirement text starts.")
@@ -146,6 +147,7 @@ Each element is a `crates-toml-dep'."
                  (dep (or (cdr (assoc id deps))
                           (let ((d (crates-toml--make-dep
                                     :name (car name-cell)
+                                    :table (car id)
                                     :key-beg (treesit-node-start (cdr name-cell)))))
                             (push (cons id d) deps)
                             d)))

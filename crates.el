@@ -382,6 +382,22 @@ serde = \"LATEST\"."
   :type 'boolean
   :group 'crates)
 
+(defcustom crates-name-completion-workspace 'inline
+  "How completing a crate that the workspace already declares is written.
+When the manifest belongs to a Cargo workspace whose root declares the
+crate in [workspace.dependencies], completing its name on an otherwise
+empty line inherits it instead of writing a version:
+
+  `inline'  serde = { workspace = true }
+  `dotted'  serde.workspace = true
+  nil       serde = \"LATEST\", as if there were no workspace
+
+Not done inside [workspace.dependencies] itself."
+  :type '(choice (const :tag "Inline table" inline)
+                 (const :tag "Dotted key" dotted)
+                 (const :tag "Never" nil))
+  :group 'crates)
+
 (defcustom crates-name-annotation-width 60
   "Width at which crate descriptions are cut in completion annotations."
   :type 'natnum
@@ -415,6 +431,49 @@ last segment of a [dependencies.NAME] header."
          ((string-match-p (concat "\\`[ \t]*\\[[ \t]*" crates--deps-table-re "\\.\\'")
                           before)
           (list beg end 'header)))))))
+
+(defun crates--in-workspace-deps-table-p ()
+  "Non-nil if point is below a [workspace.dependencies] header."
+  (save-excursion
+    (and (re-search-backward "^[ \t]*\\[" nil t)
+         (looking-at-p "[ \t]*\\[[ \t]*workspace\\.dependencies[ \t]*\\]"))))
+
+(defconst crates--workspace-header-re "^[ \t]*\\[[ \t]*workspace[ \t]*[].]"
+  "Regexp matching a [workspace] or [workspace.*] table header.")
+
+(defun crates--workspace-manifest ()
+  "Return the root manifest of the workspace the current buffer is in, or nil.
+That is the nearest Cargo.toml, starting with the buffer's own file,
+that has a [workspace] table."
+  (when-let* ((file buffer-file-name))
+    (if (save-excursion (goto-char (point-min))
+                        (re-search-forward crates--workspace-header-re nil t))
+        file
+      (let ((dir (file-name-directory (directory-file-name (file-name-directory file))))
+            found)
+        (while (and dir (not found))
+          (let ((manifest (expand-file-name "Cargo.toml" dir)))
+            (when (and (file-readable-p manifest)
+                       (with-temp-buffer
+                         (insert-file-contents manifest)
+                         (re-search-forward crates--workspace-header-re nil t)))
+              (setq found manifest)))
+          (let ((parent (file-name-directory (directory-file-name dir))))
+            (setq dir (unless (equal parent dir) parent))))
+        found))))
+
+(defun crates--workspace-dep-names ()
+  "Return the dependency names declared by the current buffer's workspace."
+  (when-let* ((manifest (crates--workspace-manifest)))
+    (let ((deps (if (equal manifest buffer-file-name)
+                    (crates-toml-dependencies)
+                  (with-temp-buffer
+                    (insert-file-contents manifest)
+                    (crates-toml-dependencies
+                     (treesit-parser-root-node (treesit-parser-create 'toml)))))))
+      (cl-loop for dep in deps
+               when (equal (crates-toml-dep-table dep) '("workspace" "dependencies"))
+               collect (crates-toml-dep-name dep)))))
 
 (defun crates--first-line (string)
   "Return the first line of STRING, or nil if STRING is nil."
@@ -482,14 +541,21 @@ the doc buffer."
                              (crates--name-doc-buffer row)))
             :exit-function
             (lambda (name status)
-              (let ((version (nth 3 (gethash name rows))))
-                (when (and crates-name-completion-insert-version
-                           version
-                           (eq kind 'key)
-                           (eq status 'finished)
-                           (looking-at-p "[ \t]*$"))
-                  (delete-region (point) (line-end-position))
-                  (insert " = \"" version "\""))))))))
+              (when (and (eq kind 'key)
+                         (eq status 'finished)
+                         (looking-at-p "[ \t]*$"))
+                (let ((version (nth 3 (gethash name rows))))
+                  (cond
+                   ((and crates-name-completion-workspace
+                         (not (crates--in-workspace-deps-table-p))
+                         (member name (crates--workspace-dep-names)))
+                    (delete-region (point) (line-end-position))
+                    (insert (if (eq crates-name-completion-workspace 'dotted)
+                                ".workspace = true"
+                              " = { workspace = true }")))
+                   ((and crates-name-completion-insert-version version)
+                    (delete-region (point) (line-end-position))
+                    (insert " = \"" version "\""))))))))))
 
 ;;;; Mode
 
