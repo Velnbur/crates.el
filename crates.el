@@ -392,10 +392,16 @@ empty line inherits it instead of writing a version:
   `dotted'  serde.workspace = true
   nil       serde = \"LATEST\", as if there were no workspace
 
-Not done inside [workspace.dependencies] itself."
+Not done inside [workspace.dependencies] itself.
+
+Safe as a file or directory local variable, so a project can pick its
+style in .dir-locals.el:
+
+  ((crates-mode . ((crates-name-completion-workspace . dotted))))"
   :type '(choice (const :tag "Inline table" inline)
                  (const :tag "Dotted key" dotted)
                  (const :tag "Never" nil))
+  :safe (lambda (value) (memq value '(inline dotted nil)))
   :group 'crates)
 
 (defcustom crates-name-annotation-width 60
