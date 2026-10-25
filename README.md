@@ -101,6 +101,12 @@ and friends:
   `serde = { workspace = true }`. Set
   `crates-name-completion-workspace` to `dotted` for
   `serde.workspace = true`, or to `nil` to always write a version.
+  The option is safe as a directory local, so each project can choose
+  its own style in `.dir-locals.el`:
+
+  ```elisp
+  ((crates-mode . ((crates-name-completion-workspace . dotted))))
+  ```
 
 - **Versions**, inside a requirement string: the crate's non-yanked
   versions, newest first, with their release dates.

@@ -238,6 +238,12 @@ Return the line holding point afterwards."
     (should (equal (crates-test--complete-in-member "[dependencies]\nli|\n" "libc")
                    "libc = \"0.2.170\""))))
 
+(ert-deftest crates-test-name-completion-workspace-safe-local ()
+  (dolist (value '(inline dotted nil))
+    (should (safe-local-variable-p 'crates-name-completion-workspace value)))
+  (should-not (safe-local-variable-p 'crates-name-completion-workspace 'other))
+  (should-not (safe-local-variable-p 'crates-name-completion-workspace "dotted")))
+
 (ert-deftest crates-test-name-completion-workspace-root ()
   (crates-test-skip-unless-grammar)
   (crates-test-with-db
